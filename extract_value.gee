@@ -1,0 +1,152 @@
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///// This code is extracting values of radius: 0-5km, 5-20km, 20-50km, 50-60km (reference) ///////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+///// below data was uploaded to Google Earth Engine from local /////
+///// dam: selected dams from GlObal GeOreferenced Database of Dams (GOODD) 
+///// ntl_ic: inter-calibrated DMSP-OLS and VIIRS from Zhao et al (2020)
+///// pop_ic: population dataset from LandScan (https://landscan.ornl.gov/landscan-datasets)
+///// gdp_ic: gridded dataset from Kummu et al (2018)
+//////////////////////////////////////////////////////////////////////////////////////////////////
+///// processing NDVI and urban areas from cloud dataset of Google Earth Engine ///////
+///// Urban areas: extraction from MCD12Q1
+var modis = ee.ImageCollection("MODIS/006/MCD12Q1").select(0);
+var urban_areas_fun = function(image){
+  return image.eq(13).selfMask();
+};
+var urban_areas_ic = modis.map(urban_areas_fun);
+var urban_areas_ic_list = urban_areas_ic.toList(urban_areas_ic.size());
+///// NDVI: extraction from MOD13Q1 -> then aggregating it to annual scale.
+var ndvi = ee.ImageCollection('MODIS/006/MOD13Q1').select(0);
+///// Annual aggregation
+var ndvi_list=ee.List([]);
+for (var i=2001; i<2019; i++){
+  var annual_ndvi = ndvi
+      .filter(ee.Filter.date(ee.Date.fromYMD(i,1,1),ee.Date.fromYMD(i,12,31)))
+      .reduce(ee.Reducer.mean());
+  var ndvi_list = ndvi_list.add(annual_ndvi)};
+var ndvi_ic = ee.ImageCollection(ndvi_list);
+//////////////////////////////////////////////////////////////////////////////////////////////////
+///// select n'th feature or image in FT or IC respectively
+/////  Need to put feature() or image() for using in actual
+var cl_selection = function(collection, index){
+  var cl_list = collection.toList(collection.size());
+  return cl_list.get(index);
+};
+//////////////////////////////////////////////////////////////////////////////////////////////////
+/////  function for get differences (two time series) from extracted values(mean) except urban areas
+var abs_diff = function(img_t1,ft_dam,scale_im){
+  var buffer_zone = ft_dam.geometry();
+  
+  var t1_values = ee.Image(img_t1).reduceRegion({
+    reducer: ee.Reducer.mean(),
+    geometry: buffer_zone,
+    scale: scale_im
+  });
+  
+  var t1 = t1_values.values().getNumber(0);
+  
+  return(t1);
+};
+
+///// function for get differences (two time series) from extracted values(sum) for urban areas
+var abs_diff_count = function(img_t1,ft_dam,scale_im){
+  var buffer_zone = ft_dam.geometry();
+  
+  var t1_values = ee.Image(img_t1).reduceRegion({
+    reducer: ee.Reducer.sum(),
+    geometry: buffer_zone,
+    scale: scale_im
+  });
+  
+  var t1 = t1_values.values().getNumber(0);
+  
+  var subtraction = t1.multiply(0.25).divide(buffer_zone.area()).multiply(100);
+  return(subtraction);
+};
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+///// function for deriving differences between two periods
+var difference = function(ft){
+  //////It will make YR 2001 as INDEX 0. Then, I need subtract(2001);
+  
+  var t1_index = ft.getNumber('T1__6_year').subtract(2001);
+  var t2_index = ft.getNumber('T2__3_year').subtract(2001);
+  
+  /////// 5km
+  /////// first time period (t1)
+  var buffer_5 = ft.buffer(5000);
+  var gdp_value_5 = abs_diff(cl_selection(gdp_ic,t1_index),buffer_5,8300);
+  var pop_value_5 = abs_diff(cl_selection(pop_ic,t1_index),buffer_5,1000);
+  var ua_value_5 = abs_diff_count(cl_selection(urban_areas_ic,t1_index),buffer_5,500);
+  var vi_value_5 = abs_diff(cl_selection(ndvi_ic,t1_index),buffer_5,500);
+  var ntl_value_5 = abs_diff(cl_selection(ntl_ic,t1_index),buffer_5,1000);
+  /// ND: 2nd time period (t2)
+  var gdp_value_5nd = abs_diff(cl_selection(gdp_ic,t2_index),buffer_5,8300);
+  var pop_value_5nd = abs_diff(cl_selection(pop_ic,t2_index),buffer_5,1000);
+  var ua_value_5nd = abs_diff_count(cl_selection(urban_areas_ic,t2_index),buffer_5,500);
+  var vi_value_5nd = abs_diff(cl_selection(ndvi_ic,t2_index),buffer_5,500);
+  var ntl_value_5nd = abs_diff(cl_selection(ntl_ic,t2_index),buffer_5,1000);
+  
+  ////// 20km
+  var buffer_20 = ft.buffer(20000).difference(ft.buffer(5000));
+  var gdp_value_20 = abs_diff(cl_selection(gdp_ic,t1_index),buffer_20,8300);
+  var pop_value_20 = abs_diff(cl_selection(pop_ic,t1_index),buffer_20,1000);
+  var ua_value_20 = abs_diff_count(cl_selection(urban_areas_ic,t1_index),buffer_20,500);
+  var vi_value_20 = abs_diff(cl_selection(ndvi_ic,t1_index),buffer_20,500);
+  var ntl_value_20 = abs_diff(cl_selection(ntl_ic,t1_index),buffer_20,1000);
+  /// ND
+  var gdp_value_20nd = abs_diff(cl_selection(gdp_ic,t2_index),buffer_20,8300);
+  var pop_value_20nd = abs_diff(cl_selection(pop_ic,t2_index),buffer_20,1000);
+  var ua_value_20nd = abs_diff_count(cl_selection(urban_areas_ic,t2_index),buffer_20,500);
+  var vi_value_20nd = abs_diff(cl_selection(ndvi_ic,t2_index),buffer_20,500);
+  var ntl_value_20nd = abs_diff(cl_selection(ntl_ic,t2_index),buffer_20,1000);
+  
+  ////// 50km
+  var buffer_50 = ft.buffer(50000).difference(ft.buffer(20000));
+  var gdp_value_50 = abs_diff(cl_selection(gdp_ic,t1_index),buffer_50,8300);
+  var pop_value_50 = abs_diff(cl_selection(pop_ic,t1_index),buffer_50,1000);
+  var ua_value_50 = abs_diff_count(cl_selection(urban_areas_ic,t1_index),buffer_50,500);
+  var vi_value_50 = abs_diff(cl_selection(ndvi_ic,t1_index),buffer_50,500);
+  var ntl_value_50 = abs_diff(cl_selection(ntl_ic,t1_index),buffer_50,1000);
+  /// ND
+  var gdp_value_50nd = abs_diff(cl_selection(gdp_ic,t2_index),buffer_50,8300);
+  var pop_value_50nd = abs_diff(cl_selection(pop_ic,t2_index),buffer_50,1000);
+  var ua_value_50nd = abs_diff_count(cl_selection(urban_areas_ic,t2_index),buffer_50,500);
+  var vi_value_50nd = abs_diff(cl_selection(ndvi_ic,t2_index),buffer_50,500);
+  var ntl_value_50nd = abs_diff(cl_selection(ntl_ic,t2_index),buffer_50,1000);
+  
+  ////// Reference
+  var buffer_ref = ft.buffer(60000).difference(ft.buffer(50000));
+  var gdp_value_ref = abs_diff(cl_selection(gdp_ic,t1_index),buffer_ref,8300);
+  var pop_value_ref = abs_diff(cl_selection(pop_ic,t1_index),buffer_ref,1000);
+  var ua_value_ref = abs_diff_count(cl_selection(urban_areas_ic,t1_index),buffer_ref,500);
+  var vi_value_ref = abs_diff(cl_selection(ndvi_ic,t1_index),buffer_ref,500);
+  var ntl_value_ref = abs_diff(cl_selection(ntl_ic,t1_index),buffer_ref,1000);
+  /// ND
+  var gdp_value_refnd = abs_diff(cl_selection(gdp_ic,t2_index),buffer_ref,8300);
+  var pop_value_refnd = abs_diff(cl_selection(pop_ic,t2_index),buffer_ref,1000);
+  var ua_value_refnd = abs_diff_count(cl_selection(urban_areas_ic,t2_index),buffer_ref,500);
+  var vi_value_refnd = abs_diff(cl_selection(ndvi_ic,t2_index),buffer_ref,500);
+  var ntl_value_refnd = abs_diff(cl_selection(ntl_ic,t2_index),buffer_ref,1000);
+    
+  var diff_dict = ft.set({'APOP_05':pop_value_5, 'AURBAN_05':ua_value_5,'ANDVI_05':vi_value_5,'ANTL_05':ntl_value_5,'AGDP_05':gdp_value_5,
+    'APOP_20':pop_value_20, 'AURBAN_20':ua_value_20,'ANDVI_20':vi_value_20,'ANTL_20':ntl_value_20,'AGDP_20':gdp_value_20,
+    'APOP_50':pop_value_50, 'AURBAN_50':ua_value_50,'ANDVI_50':vi_value_50,'ANTL_50':ntl_value_50,'AGDP_50':gdp_value_50,
+    'APOP_ref':pop_value_ref, 'AURBAN_ref':ua_value_ref,'ANDVI_ref':vi_value_ref,'ANTL_ref':ntl_value_ref,'AGDP_ref':gdp_value_ref,
+    'NPOP_05':pop_value_5nd, 'NURBAN_05':ua_value_5nd,'NNDVI_05':vi_value_5nd,'NNTL_05':ntl_value_5nd,'NGDP_05':gdp_value_5nd,
+    'NPOP_20':pop_value_20nd, 'NURBAN_20':ua_value_20nd,'NNDVI_20':vi_value_20nd,'NNTL_20':ntl_value_20nd,'NGDP_20':gdp_value_20nd,
+    'NPOP_50':pop_value_50nd, 'NURBAN_50':ua_value_50nd,'NNDVI_50':vi_value_50nd,'NNTL_50':ntl_value_50nd,'NGDP_50':gdp_value_50nd,
+    'NPOP_ref':pop_value_refnd, 'NURBAN_ref':ua_value_refnd,'NNDVI_ref':vi_value_refnd,'NNTL_ref':ntl_value_refnd, 'NGDP_ref':gdp_value_refnd
+  });
+  
+  return(diff_dict)};
+
+/// Export the results
+var file_name: // please enter yours
+var folder_name: // please enter yours
+Export.table.toDrive({
+  collection:dam.map(difference),
+  description: file_name,
+  folder: 'folder_name
+});
