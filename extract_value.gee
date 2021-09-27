@@ -16,7 +16,7 @@ var urban_areas_fun = function(image){
 };
 var urban_areas_ic = modis.map(urban_areas_fun);
 var urban_areas_ic_list = urban_areas_ic.toList(urban_areas_ic.size());
-///// NDVI: extraction from MOD13Q1 -> then aggregating it to annual scale.
+///// NDVI: extraction from MOD13Q1 -> water masked using maximum extents from JRC dataset-> then aggregating it to annual scale.
 var ndvi = ee.ImageCollection('MODIS/006/MOD13Q1').select(0);
 ///// Annual aggregation
 var ndvi_list=ee.List([]);
@@ -25,7 +25,20 @@ for (var i=2001; i<2019; i++){
       .filter(ee.Filter.date(ee.Date.fromYMD(i,1,1),ee.Date.fromYMD(i,12,31)))
       .reduce(ee.Reducer.mean());
   var ndvi_list = ndvi_list.add(annual_ndvi)};
-var ndvi_ic = ee.ImageCollection(ndvi_list);
+  
+///// Getting JRC water mask
+var jrc = ee.Image('JRC/GSW1_3/GlobalSurfaceWater').select('transition');
+
+var jrc_1 = jrc.eq(1);
+var jrc_2 = jrc.eq(2);
+var jrc_water = jrc_1.or(jrc_2).selfMask();
+
+var remove_water = function (img){
+  return (img.updateMask(jrc_water.unmask().not()));
+};
+
+////// NDVI masked with JRC-driven water masks
+var ndvi_ic = ee.ImageCollection(ndvi_list).map(remove_water);
 //////////////////////////////////////////////////////////////////////////////////////////////////
 ///// select n'th feature or image in FT or IC respectively
 /////  Need to put feature() or image() for using in actual
