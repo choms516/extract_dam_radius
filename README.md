@@ -1,6 +1,6 @@
 # extract_dam_radius
 
-This repository includes a code used in the paper: 
+This repository includes a code and data used in the paper: 
 
 - P.Fan, M.Cho, Z.Lin, Z.Ouyang, J.Qi, J.Chen, & E.Moran (submission), Recently constructed hydropower dams reduced economic production, population, and greenness in nearby areas, Proceedings of the National Academy of Sciences of the United States of America
 
